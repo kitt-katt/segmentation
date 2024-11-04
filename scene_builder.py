@@ -5,25 +5,67 @@ from mathutils import Vector
 from collections import deque
 import bmesh
 
+
+# Словарь классов
+room_classes = {
+    0.0: "Background",
+    1.0: "Outdoor", 
+    2.0: "Wall",  
+    3.0: "Kitchen",  
+    4.0: "Living Room",  
+    5.0: "Bed Room",  
+    6.0: "Bath",  
+    7.0: "Entry",  
+    8.0: "Railing",  
+    9.0: "Storage",  
+    10.0: "Garage", 
+    11.0: "Undefined"  
+}
+
+
+def rename_and_filter_objects(obj, class_id):
+    """
+    Переименовывает объект на сцене Blender в соответствии с классом, исключая
+    классы "Background" и "Outdoor".
+
+    Parameters:
+        obj (bpy.types.Object): объект в Blender, который нужно переименовать.
+        class_id (float): идентификатор класса объекта.
+        room_classes (dict): словарь классов с текстовыми названиями.
+        
+    Returns:
+        bool: True если объект следует оставить, False если его нужно исключить.
+    """
+    # Исключаем классы "Background" и "Outdoor"
+    if class_id in [0.0, 1.0]:  
+        return False
+    
+    # Переименовываем объект по его классу
+    class_name = room_classes.get(class_id, "Unknown")
+    obj.name = f"{class_name}_Block"
+    
+    return True
+
+
 # Загрузка JSON и создание numpy array
 with open("output/test.json", "r") as file:
     data = json.load(file)
 classification_array = np.array(data)
 
+
+
 # Определение цветовой палитры для классов
 class_colors = {
-    0.0: (1, 0, 0, 1),    # Красный
-    1.0: (0, 1, 0, 1),    # Зеленый
-    2.0: (0, 0, 1, 1),    # Синий
-    3.0: (1, 1, 0, 1),    # Желтый
-    4.0: (1, 0, 1, 1),    # Фиолетовый
-    5.0: (0, 1, 1, 1),    # Голубой
-    6.0: (0.5, 0.5, 0.5, 1),  # Серый
-    7.0: (1, 0.5, 0, 1),  # Оранжевый
-    8.0: (0.5, 0, 0.5, 1),  # Темно-фиолетовый
-    9.0: (0, 0.5, 0.5, 1),  # Бирюзовый
-    10.0: (0.5, 0.5, 0, 1), # Оливковый
-    11.0: (1, 1, 1, 1),   # Белый
+    2.0: (0, 0, 1, 1),    # Wall
+    3.0: (1, 1, 0, 1),    # Kitchen
+    4.0: (1, 0, 1, 1),    # Living Room
+    5.0: (0, 1, 1, 1),    # Bed Room
+    6.0: (0.5, 0.5, 0.5, 1),  # Bath
+    7.0: (1, 0.5, 0, 1),  # Entry
+    8.0: (0.5, 0, 0.5, 1),  # Railing
+    9.0: (0, 0.5, 0.5, 1),  # Storage
+    10.0: (0.5, 0.5, 0, 1), # Garage
+    11.0: (1, 1, 1, 1),   # Undefined
 }
 
 # Функция для создания материала
@@ -69,12 +111,20 @@ bpy.ops.object.delete(use_global=False)
 # Создание мешей для каждого блока каждого класса
 unique_classes = np.unique(classification_array)
 for class_id in unique_classes:
+    if class_id in [0.0, 1.0]:  # Пропускаем классы "Background" и "Outdoor"
+        continue
+    
     blocks = find_blocks(classification_array, class_id)
     
     for block in blocks:
         # Создаем новый меш для блока
-        mesh = bpy.data.meshes.new(f"Class_{class_id}_Block")
-        obj = bpy.data.objects.new(f"Class_{class_id}_Block", mesh)
+        mesh = bpy.data.meshes.new(f"Class_{class_id}")
+        obj = bpy.data.objects.new(f"Class_{class_id}", mesh)
+        
+        # Переименовываем объект и проверяем, нужно ли его оставить
+        if not rename_and_filter_objects(obj, class_id):
+            continue
+        
         bpy.context.collection.objects.link(obj)
         
         # Создание bmesh для работы с произвольной геометрией блока
@@ -107,6 +157,7 @@ for class_id in unique_classes:
             obj.data.materials[0] = material
         else:
             obj.data.materials.append(material)
+
 
 # Сохранение файла Blender
 save_path = "your_blender_file.blend"
